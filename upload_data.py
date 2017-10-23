@@ -2,14 +2,15 @@
 import time
 import json
 import base64
+import socket
 
 import arrow
 
 from helper_kakou_v2 import Kakou
 from helper_consul import ConsulAPI
+from helper_kafka import KafkaData
 from my_yaml import MyYAML
 from my_logger import *
-from helper_kafka import KafkaData
 
 
 debug_logging('/home/logs/error.log')
@@ -24,21 +25,24 @@ class UploadData(object):
         # request方法类
         self.kk = None
         self.ka = KafkaData(**dict(self.my_ini['kafka']))
-        self.con = ConsulAPI(**dict(self.my_ini['consul']))
+        self.con = ConsulAPI()
 	
         # ID上传标记
         self.id_flag = 0
-        self.step = self.my_ini['step']
-        self.kkdd = self.my_ini['kkdd']
+        self.kk_name = dict(self.my_ini['kakou'])['name']
+        self.step = dict(self.my_ini['kakou'])['step']
+        self.kkdd = dict(self.my_ini['kakou'])['kkdd']
 
         self.uuid = None                    # session id
         self.session_time = time.time()     # session生成时间戳
-        self.ttl = dict(self.my_ini['consul'])['ttl']              # 生存周期
-        self.lock_name = dict(self.my_ini['consul'])['lock_name']  # 锁名
+        self.ttl = dict(self.my_ini['consul'])['ttl']               # 生存周期
+        self.lock_name = dict(self.my_ini['consul'])['lock_name']   # 锁名
         self.lost_list = []                 # 未上传数据列表
 
+        self.local_ip = socket.gethostbyname(socket.gethostname())  # 本地IP
+
     def get_id(self):
-        # 获取上传id
+        """获取上传id"""
         val = self.con.get_id()[0]['Value']
         self.id_flag = json.loads(base64.b64decode(val).decode())
 
@@ -50,7 +54,7 @@ class UploadData(object):
         print(_id)
 
     def get_lost(self):
-        # 获取未上传数据id列表
+        """获取未上传数据id列表"""
         value = self.con.get_lost()[0]['Value']
         self.lost_list = json.loads(base64.b64decode(value).decode())
 
@@ -74,7 +78,6 @@ class UploadData(object):
         info = self.kk.get_kakou(self.id_flag+1, self.id_flag+self.step, 1, self.step)
         # 如果查询数据为0
         if info['total_count'] == 0:
-            time.sleep(1)
             return 0
 
         data = []
@@ -108,7 +111,7 @@ class UploadData(object):
         if t > (self.ttl - 10):
             self.con.renew_session(self.uuid)
             self.session_time = time.time()
-        l = self.con.get_lock(self.uuid)
+        l = self.con.get_lock(self.uuid, self.local_ip)
         #print(self.uuid, l)
         # session过期
         if l == None:
@@ -142,7 +145,7 @@ class UploadData(object):
                     self.post_lost_data()
                     n = self.post_info()
                     if n >= self.step:
-                        time.sleep(0.5)
+                        time.sleep(0.25)
                     else:
                         time.sleep(1)
                 except Exception as e:
@@ -151,7 +154,7 @@ class UploadData(object):
             else:
                 try:
                     if self.kk is None or not self.kk.status:
-                        s = self.get_service('kakouBldh')
+                        s = self.get_service(self.kk_name)
                         if s is None:
                             time.sleep(5)
                             continue
