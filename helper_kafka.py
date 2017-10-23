@@ -18,9 +18,9 @@ class KafkaData(object):
         except TypeError as e:
             assert str(e) == "expected configuration dict"
         self.p = Producer({'bootstrap.servers': '{0}'.format(kwargs['services']),
-                           'socket.timeout.ms': 1000, 'error_cb': error_cb,
-                           'retries': 3, 'retry.backoff.ms': 2000, 'batch.num.messages': 400,
-                           'default.topic.config': {'message.timeout.ms': 1000, 'acks': 'all'}})
+                           'socket.timeout.ms': 15000, 'error_cb': error_cb,
+                           'retries': 3, 'retry.backoff.ms': 2000, 'batch.num.messages': 1000,
+                           'default.topic.config': {'message.timeout.ms': 15000, 'acks': 'all'}})
         self.topic = kwargs['topic']
         self.lost_msg = []
 
