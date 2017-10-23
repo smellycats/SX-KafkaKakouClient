@@ -6,9 +6,9 @@ import requests
 
 
 class ConsulAPI(object):
-    def __init__(self, **kwargs):
-        self.host = kwargs['host']
-        self.port = kwargs['port']
+    def __init__(self):
+        self.host = '127.0.0.1'
+        self.port = 8500
         self.headers = {'content-type': 'application/json'}
        
         self.path = 'kafka/bldh/'
@@ -102,12 +102,12 @@ class ConsulAPI(object):
             self.status = False
             raise
 
-    def get_lock(self, uuid):
+    def get_lock(self, uuid, data):
         """获取锁成功返回True,失败返回False,session过期返回500错误"""
         url = 'http://{0}:{1}/v1/kv/{2}lock?acquire={3}'.format(
             self.host, self.port, self.path, uuid)
         try:
-            r = requests.put(url, data=self.host)
+            r = requests.put(url, data=data)
             if r.status_code == 200:
                 return json.loads(r.text)
             elif r.status_code == 500:
@@ -151,7 +151,6 @@ class ConsulAPI(object):
         except Exception as e:
             self.status = False
             raise
-
 
     def get_lost(self):
         """获取电话号码"""
