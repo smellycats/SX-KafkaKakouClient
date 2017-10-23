@@ -1,10 +1,10 @@
 kafka:
   services: 10.123.123.123:9092, 10.123.123.124:9092
-  topic: kakou
+  topic: kakou_bl
 consul:
-  host: 10.47.123.123
-  port: 8500
   ttl: 30
-  lock_name: kafka-lock
-step: 200
-kkdd: '441302000'
+  lock_name: bldh-kafka-lock
+kakou:
+  name: kakouBldh
+  step: 200
+  kkdd: '441322000'
