@@ -63,7 +63,8 @@ class UploadData(object):
         if len(self.lost_list) == 0:
             return
         for i in self.lost_list:
-            self.ka.produce_info(key=str(i['id']), value=json.dumps(i))
+            value = {'timestamp': arrow.now('PRC').format('YYYY-MM-DD HH:mm:ss'), 'message': i}
+            self.ka.produce_info(key=str(i['id']), value=json.dumps(value))
             print('lost={0}'.format(i['id']))
         self.ka.flush()
         self.lost_list = []
@@ -80,14 +81,13 @@ class UploadData(object):
         if info['total_count'] == 0:
             return 0
 
-        data = []
         for i in info['items']:
             if i['kkdd_id'] is None or i['kkdd_id'] == '':
                 i['kkdd_id'] = self.kkdd
             if i['hphm'] is None or i['hphm'] == '':
                 i['hphm'] = '-'
-            data.append(i)
-            self.ka.produce_info(key=str(i['id']), value=json.dumps(i))
+            value = {'timestamp': arrow.now('PRC').format('YYYY-MM-DD HH:mm:ss'), 'message': i}
+            self.ka.produce_info(key=str(i['id']), value=json.dumps(value))
         self.ka.flush()
         if len(self.ka.lost_msg) > 0:
             for i in self.ka.lost_msg:
