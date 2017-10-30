@@ -63,9 +63,9 @@ class UploadData(object):
         if len(self.lost_list) == 0:
             return
         for i in self.lost_list:
-            value = {'timestamp': arrow.now('PRC').format('YYYY-MM-DD HH:mm:ss'), 'message': i}
-            self.ka.produce_info(key=str(i['id']), value=json.dumps(value))
-            print('lost={0}'.format(i['id']))
+            value = {'timestamp': arrow.now('PRC').format('YYYY-MM-DD HH:mm:ss'), 'message': i['message']}
+            self.ka.produce_info(key=str(i['message']['id']), value=json.dumps(value))
+            print('lost={0}'.format(i['message']['id']))
         self.ka.flush()
         self.lost_list = []
         if len(self.ka.lost_msg) > 0:
