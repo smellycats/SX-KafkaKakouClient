@@ -144,9 +144,7 @@ class UploadData(object):
                 try:
                     self.post_lost_data()
                     n = self.post_info()
-                    if n >= self.step:
-                        time.sleep(0.25)
-                    else:
+                    if n < self.step:
                         time.sleep(1)
                 except Exception as e:
                     logger.exception(e)
