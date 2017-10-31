@@ -28,7 +28,6 @@ class UploadData(object):
         self.con = ConsulAPI()
 	
         # ID上传标记
-        self.id_flag = 0
         self.kk_name = dict(self.my_ini['kakou'])['name']
         self.step = dict(self.my_ini['kakou'])['step']
         self.kkdd = dict(self.my_ini['kakou'])['kkdd']
@@ -37,46 +36,46 @@ class UploadData(object):
         self.session_time = time.time()     # session生成时间戳
         self.ttl = dict(self.my_ini['consul'])['ttl']               # 生存周期
         self.lock_name = dict(self.my_ini['consul'])['lock_name']   # 锁名
-        self.lost_list = []                 # 未上传数据列表
 
         self.local_ip = socket.gethostbyname(socket.gethostname())  # 本地IP
 
     def get_id(self):
         """获取上传id"""
-        val = self.con.get_id()[0]['Value']
-        self.id_flag = json.loads(base64.b64decode(val).decode())
+        r = self.con.get_id()[0]
+        return json.loads(base64.b64decode(r['Value']).decode()), r['ModifyIndex']
 
-    def set_id(self, _id):
+    def set_id(self, _id, modify_index):
         """设置ID"""
-        r = self.con.get_id()
-        if self.con.put_id(_id, r[0]['ModifyIndex']):
-            self.id_flag = _id
-        print(_id)
+        if self.con.put_id(_id, modify_index):
+            print(_id)
 
     def get_lost(self):
         """获取未上传数据id列表"""
-        value = self.con.get_lost()[0]['Value']
-        self.lost_list = json.loads(base64.b64decode(value).decode())
+        r = self.con.get_lost()[0]
+        return json.loads(base64.b64decode(r['Value']).decode()), r['ModifyIndex']
 
     def post_lost_data(self):
         """未上传数据重传"""
-        if len(self.lost_list) == 0:
-            return
-        for i in self.lost_list:
+        lost_list, modify_index = self.get_lost()
+        if len(lost_list) == 0:
+            return 0
+        for i in lost_list:
             value = {'timestamp': arrow.now('PRC').format('YYYY-MM-DD HH:mm:ss'), 'message': i['message']}
             self.ka.produce_info(key=str(i['message']['id']), value=json.dumps(value))
             print('lost={0}'.format(i['message']['id']))
         self.ka.flush()
-        self.lost_list = []
+        lost_list = []
         if len(self.ka.lost_msg) > 0:
             for i in self.ka.lost_msg:
-                self.lost_list.append(json.loads(i.value()))
+                lost_list.append(json.loads(i.value()))
             self.ka.lost_msg = []
-        self.con.put_lost(json.dumps(self.lost_list))
+        self.con.put_lost(json.dumps(lost_list))
+        return len(lost_list)
 
     def post_info(self):
         """上传数据"""
-        info = self.kk.get_kakou(self.id_flag+1, self.id_flag+self.step, 1, self.step)
+        id, modify_index = self.get_id()
+        info = self.kk.get_kakou(id+1, id+self.step, 1, self.step)
         # 如果查询数据为0
         if info['total_count'] == 0:
             return 0
@@ -90,12 +89,13 @@ class UploadData(object):
             self.ka.produce_info(key=str(i['id']), value=json.dumps(value))
         self.ka.flush()
         if len(self.ka.lost_msg) > 0:
+            lost_list = []
             for i in self.ka.lost_msg:
-                self.lost_list.append(json.loads(i.value()))
+                lost_list.append(json.loads(i.value()))
             self.ka.lost_msg = []
-            self.con.put_lost(json.dumps(self.lost_list))
+            self.con.put_lost(json.dumps(lost_list))
         # 设置最新ID
-        self.set_id(info['items'][-1]['id'])
+        self.set_id(info['items'][-1]['id'], modify_index)
         return info['total_count']
 
     def get_lock(self):
@@ -103,16 +103,13 @@ class UploadData(object):
         if self.uuid is None:
             self.uuid = self.con.put_session(self.ttl, self.lock_name)['ID']
             self.session_time = time.time()
-            # 获取上传id
-            self.get_id()
-            self.get_lost()
         # 大于一定时间间隔则更新session
         t = time.time() - self.session_time
         if t > (self.ttl - 10):
             self.con.renew_session(self.uuid)
             self.session_time = time.time()
         l = self.con.get_lock(self.uuid, self.local_ip)
-        #print(self.uuid, l)
+        # print(self.uuid, l)
         # session过期
         if l == None:
             self.uuid = None
@@ -142,7 +139,10 @@ class UploadData(object):
                 continue
             if self.kk is not None and self.kk.status:
                 try:
-                    self.post_lost_data()
+                    m = self.post_lost_data()
+                    if m > 0:
+                        time.sleep(0.5)
+                        continue
                     n = self.post_info()
                     if n < self.step:
                         time.sleep(1)
